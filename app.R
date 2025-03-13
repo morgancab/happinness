@@ -298,69 +298,102 @@ output$clean_data <- renderDataTable({ dataset() })
             }
 })
   
-  output$word_cloud = renderWordcloud2({
+  output$word_cloud <- renderWordcloud2({
+    # Vérifier que dataset() n'est pas null
+    req(dataset())
     
-    docs <- Corpus(VectorSource(data$`Qu'est ce qui vous rend heureux au quotidien ?`))
-    toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
-    docs <- tm_map(docs, toSpace, "/")
-    docs <- tm_map(docs, toSpace, "@")
-    docs <- tm_map(docs, toSpace, "\\|")
+    # Récupérer les données
+    data <- dataset()
     
-    # Convertir le texte en minuscule
-    docs <- tm_map(docs, content_transformer(tolower))
-    # Supprimer les nombres
-    docs <- tm_map(docs, removeNumbers)
-    # Supprimer les mots vides anglais
-    docs <- tm_map(docs, removeWords, stopwords("english"))
-    # Supprimer votre propre liste de mots non désirés
-    docs <- tm_map(docs, removeWords, c("dos", "NSP")) 
-    # Supprimer les ponctuations
-    docs <- tm_map(docs, removePunctuation)
-    # Supprimer les espaces vides supplémentaires
-    docs <- tm_map(docs, stripWhitespace)
-    # Text stemming
-    docs <- tm_map(docs, stemDocument)
+    # Vérifier quelle colonne contient les réponses à analyser
+    colonne_texte <- "Qu'est ce qui vous rend heureux au quotidien ?"  # Ajustez le nom de la colonne
     
-    dtm <- TermDocumentMatrix(docs)
-    m <- as.matrix(dtm)
-    v <- sort(rowSums(m),decreasing=TRUE)
-    d <- data.frame(word = names(v),freq=v)
+    # Préparation du texte
+    texte <- data[[colonne_texte]]
+    texte <- tolower(texte)  # Mettre en minuscules
+    texte <- gsub("[[:punct:]]", " ", texte)  # Enlever la ponctuation
+    texte <- gsub("[[:digit:]]", " ", texte)  # Enlever les chiffres
+    texte <- gsub("\r?\n|\r", " ", texte)  # Enlever les retours à la ligne
+    texte <- gsub("\\s+", " ", texte)  # Normaliser les espaces
     
-    wordcloud2(d, color="random-light")
-  })
+    # Suppression des accents
+    texte <- iconv(texte, to = "ASCII//TRANSLIT")
+    
+    # Tokenization et comptage
+    words <- unlist(strsplit(texte, " "))
+    words <- words[words != ""]  # Enlever les chaînes vides
+    
+    # Supprimer les mots vides (stopwords)
+    stopwords_fr <- c("le", "la", "les", "un", "une", "des", "et", "est", "en", "de", "du", "dans", "pour", "par", "que", "qui", "ce", "ces", "mais", "ou", "où", "donc")  # Ajoutez d'autres mots si nécessaire
+    words <- words[!words %in% stopwords_fr]
+    
+    # Créer le dataframe pour wordcloud2
+    word_freq <- as.data.frame(table(words))
+    colnames(word_freq) <- c("word", "freq")
+    word_freq <- word_freq[order(-word_freq$freq),]
+    
+    # Filtrer les mots peu fréquents si nécessaire
+    word_freq <- word_freq[word_freq$freq > 1,]
+    
+    # Debug : afficher les premiers mots et leurs fréquences
+    print(head(word_freq, 10))
+    
+    # Créer le nuage de mots
+    wordcloud2(word_freq, size = 1, minRotation = -pi/6, maxRotation = pi/6)
+})
+
   
   output$bar <- renderPlot({ 
+    # Vérifier que dataset() n'est pas null
+    req(dataset())
     
-    docs <- Corpus(VectorSource(data$`Quel est votre but dans la vie ?`))
-    toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
-    docs <- tm_map(docs, toSpace, "/")
-    docs <- tm_map(docs, toSpace, "@")
-    docs <- tm_map(docs, toSpace, "\\|")
+    # Récupérer les données
+    data <- dataset()
     
-    # Convertir le texte en minuscule
-    docs <- tm_map(docs, content_transformer(tolower))
-    # Supprimer les nombres
-    docs <- tm_map(docs, removeNumbers)
-    # Supprimer les mots vides anglais
-    docs <- tm_map(docs, removeWords, stopwords("english"))
-    # Supprimer votre propre liste de mots non désirés
-    docs <- tm_map(docs, removeWords, c("dos", "NSP")) 
-    # Supprimer les ponctuations
-    docs <- tm_map(docs, removePunctuation)
-    # Supprimer les espaces vides supplémentaires
-    docs <- tm_map(docs, stripWhitespace)
-    # Text stemming
-    docs <- tm_map(docs, stemDocument)
+    # Vérifier quelle colonne contient les réponses à analyser
+    colonne_texte <- "Quel est votre but dans la vie ?"  # Ajustez le nom de la colonne
     
-    dtm <- TermDocumentMatrix(docs)
-    m <- as.matrix(dtm)
-    v <- sort(rowSums(m),decreasing=TRUE)
-    d <- data.frame(word = names(v),freq=v)
+    # Préparation du texte
+    texte <- data[[colonne_texte]]
+    texte <- tolower(texte)  # Mettre en minuscules
+    texte <- gsub("[[:punct:]]", " ", texte)  # Enlever la ponctuation
+    texte <- gsub("[[:digit:]]", " ", texte)  # Enlever les chiffres
+    texte <- gsub("\r?\n|\r", " ", texte)  # Enlever les retours à la ligne
+    texte <- gsub("\\s+", " ", texte)  # Normaliser les espaces
     
-    barplot(d[1:10,]$freq, las = 2, names.arg = d[1:10,]$word,
-            col ="lightblue", xlab=d[1:10]$word, main ="Most frequent words",
-            ylab = "Word frequencies")
-  })
+    # Suppression des accents
+    texte <- iconv(texte, to = "ASCII//TRANSLIT")
+    
+    # Tokenization et comptage
+    words <- unlist(strsplit(texte, " "))
+    words <- words[words != ""]  # Enlever les chaînes vides
+    
+    # Supprimer les mots vides (stopwords)
+    stopwords_fr <- c("le", "la", "les", "un", "une", "des", "et", "est", "en", "de", "du", "dans", 
+                     "pour", "par", "que", "qui", "ce", "ces", "mais", "ou", "où", "donc", "vie",
+                     "etre", "avoir", "faire")  # Ajoutez d'autres mots si nécessaire
+    words <- words[!words %in% stopwords_fr]
+    
+    # Créer le dataframe pour le graphique
+    word_freq <- as.data.frame(table(words))
+    colnames(word_freq) <- c("word", "freq")
+    word_freq <- word_freq[order(-word_freq$freq),]
+    
+    # Prendre les 10 premiers mots
+    top_words <- head(word_freq, 10)
+    
+    # Créer le graphique
+    par(mar = c(8, 4, 4, 2))  # Ajuster les marges pour les labels
+    barplot(top_words$freq, 
+            names.arg = top_words$word,
+            las = 2,  # Rotation verticale des labels
+            col = "lightblue",
+            main = "Mots les plus fréquents",
+            ylab = "Fréquence",
+            cex.names = 0.8)  # Taille des labels
+})
+
+
  
 }
 
