@@ -1,5 +1,6 @@
 
-list.of.packages <- c("shiny", "shinydashboard","wordcloud2", "dplyr", "leaflet", "DT", "readxl", "writexl")
+list.of.packages <- c("shiny", "shinydashboard", "wordcloud2", "dplyr", "leaflet", 
+                     "DT", "readxl", "writexl", "ggplot2", "tidyr", "sf", "viridis")  
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -229,74 +230,124 @@ output$clean_data <- renderDataTable({ dataset() })
  
  
  output$pie <- renderPlot({
-   if (input$department == "All"){
-      pie(round(prop.table(table(data$`Quel est votre sexe ?`))*100), labels=round(prop.table(table(data$`Quel est votre sexe ?`))*100),main="Proportion de répondant selon leur sexes", col=c("red","orange"))
-      legend("bottomleft", legend=c("Femme","Homme"), box.lty=0,fill=c("red", "orange"),title="Légende")
-   }else if(input$department == "Autres"){
-     pie(round(prop.table(table(data$`Quel est votre sexe ?`[data$Departement!=38]))*100), labels=round(prop.table(table(data$`Quel est votre sexe ?`))*100),main="Proportion de répondant selon leur sexes", col=c("red","orange"))
-     legend("bottomleft", legend=c("Femme","Homme"), box.lty=0,fill=c("red", "orange"),title="Légende")
-   }else{
-     pie(round(prop.table(table(data$`Quel est votre sexe ?`[data$Departement==38]))*100), labels=round(prop.table(table(data$`Quel est votre sexe ?`))*100),main="Proportion de répondant selon leur sexes", col=c("red","orange"))
-     legend("bottomleft", legend=c("Femme","Homme"), box.lty=0,fill=c("red", "orange"),title="Légende")
-   }
-   
- })
+    # S'assurer que les données sont disponibles
+    req(dataset())
+    
+    # Obtenir les données
+    data <- dataset()
+    
+    # Debug: vérifier les données
+    print("Données disponibles:")
+    print(str(data))
+    
+    # Filtrer selon le département sélectionné
+    filtered_data <- if (input$department == "All") {
+        data$Sexe
+    } else if (input$department == "Autres") {
+        data$Sexe[data$Departement != 38]
+    } else {
+        data$Sexe[data$Departement == 38]
+    }
+    
+    # Créer la table de fréquences
+    freq_table <- table(filtered_data)
+    props <- prop.table(freq_table) * 100
+    
+    # Debug: vérifier les proportions
+    print("Proportions calculées:")
+    print(props)
+    
+    # Créer le camembert avec ggplot2
+    data_pie <- data.frame(
+        category = names(props),
+        value = as.numeric(props)
+    )
+    
+    ggplot(data_pie, aes(x = "", y = value, fill = category)) +
+        geom_bar(stat = "identity", width = 1) +
+        coord_polar("y", start = 0) +
+        theme_void() +
+        labs(title = "Proportion de répondants selon leur sexe",
+             fill = "Sexe") +
+        geom_text(aes(label = paste0(round(value, 1), "%")),
+                  position = position_stack(vjust = 0.5)) +
+        scale_fill_manual(values = c("red", "orange"))
+})
+
  
  #### histogramme
 
- output$hist<-renderPlot({
-    hist(data$`Quel est votre âge ? (Ex : 30 pour 30 ans)`,xlab="Age",breaks=c(0,18, 30, 45, 60, 75,100),col="green", freq=T,include.lowest = TRUE, main="Histogramme des ages")
+output$hist <- renderPlot({
+    req(dataset())
+    data <- dataset()
+    
+    # Vérifier si la colonne Age existe
+    if(!"Age" %in% names(data)) {
+        return(ggplot() + 
+               geom_text(aes(x = 0, y = 0, label = "Données d'âge non disponibles"), size = 6) +
+               theme_void())
+    }
+    
+    # Supprimer les valeurs NA et non numériques
+    data$Age <- as.numeric(as.character(data$Age))
+    data <- data[!is.na(data$Age),]
+    
+    # Définir les breaks de manière à ce qu'ils soient uniques
+    breaks <- c(0, 18, 30, 45, 60, 75, max(data$Age, na.rm = TRUE))
+    
+    ggplot(data, aes(x = Age)) +
+        geom_histogram(breaks = breaks,
+                       fill = "green",
+                       color = "black") +
+        scale_x_continuous(breaks = breaks) +
+        labs(title = "Histogramme des âges",
+             x = "Age",
+             y = "Fréquence") +
+        theme_minimal()
 })
+
  
  #### Map
  
-  output$map <- renderPlot({ 
-            france=read.csv("departements-france.csv",encoding="UTF-8")
-            code_departement=as.integer(unique(data$Departement))
-            X = unique(data$Departement)
+  output$map <- renderPlot({
+    # S'assurer que les données sont disponibles
+    req(dataset())
     
-            somme_departement=0
-            for (j in 1:length(X)){
-              for (i in 1:nrow(data)){
-                somme_departement[j]=sum(data$Departement==X[j])
-              }
-            }
-          
-            datadpt=data.frame(code_departement,somme_departement)
-            datadpt=merge(datadpt,france,by="code_departement")
-            
-            France <- gadm_sf_loadCountries("FRA", level=2 )
-            mydata <- data.frame(datadpt)
- 
-           if (input$department == "All"){
-              choropleth(France, 
-                      data = mydata, 
-                      step=4,
-                      value = "somme_departement", 
-                      adm.join = "nom_departement",
-                      palette = "Set3",
-                      legend="Nombre de participations au questionaire",
-                      title="Participation au questionnaire")
-            }else if(input$department == "Autres"){
-              choropleth(France, 
-                         data = mydata[mydata$code_departement!=38,], 
-                         step=4,
-                         value = "somme_departement", 
-                         adm.join = "nom_departement",
-                         palette = "Set3",
-                         legend="Nombre de participations au questionaire",
-                         title="Participation au questionnaire")
-            }else{
-              choropleth(France, 
-                         data = mydata[mydata$code_departement==38,], 
-                         step=4,
-                         value = "somme_departement", 
-                         adm.join = "nom_departement",
-                         palette = "Set3",
-                         legend="Nombre de participations au questionaire",
-                         title="Participation au questionnaire")
-            }
+    # Obtenir les données
+    data <- dataset()
+    
+    # Charger les données géographiques directement depuis GitHub
+    france_map <- sf::st_read("https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson")
+    
+    # Calculer les sommes par département
+    dept_counts <- as.data.frame(table(data$Departement))
+    colnames(dept_counts) <- c("code", "count")
+    dept_counts$code <- as.character(dept_counts$code)
+    
+    # Fusionner avec la carte
+    france_map <- merge(france_map, dept_counts, by = "code", all.x = TRUE)
+    
+    # Remplacer les NA par 0
+    france_map$count[is.na(france_map$count)] <- 0
+    
+    # Créer la carte avec l'échelle de couleurs bleu clair à bleu foncé
+    ggplot(data = france_map) +
+        geom_sf(aes(fill = count)) +
+        scale_fill_gradient(low = "lightblue", high = "darkblue", name = "Nombre de réponses") +
+        theme_minimal() +
+        labs(title = "Répartition des réponses par département") +
+        theme(axis.text = element_blank(),
+              axis.ticks = element_blank(),
+              panel.grid = element_blank(),
+              plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+              legend.position = "right")
 })
+
+
+
+
+
+
   
   output$word_cloud <- renderWordcloud2({
     # Vérifier que dataset() n'est pas null
