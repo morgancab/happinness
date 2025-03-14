@@ -27,51 +27,48 @@ jobs:
             libssl-dev \
             libxml2-dev \
             libgit2-dev \
-            libharfbuzz-dev \
-            libfribidi-dev
+            libudunits2-dev \
+            libgdal-dev \
+            libproj-dev \
+            libgeos-dev \
+            gdal-bin \
+            proj-bin
 
-      - name: Set up R package directory
-        run: |
-          mkdir -p ~/.R/library
-          echo "R_LIBS_USER=~/.R/library" >> ~/.Renviron
-
-      - name: Pre-install critical packages
+      - name: Install spatial dependencies first
         run: |
           Rscript -e '
           options(repos = c(CRAN = "https://cloud.r-project.org"))
-          install.packages(c("shiny", "shinydashboard"), dependencies = TRUE)
+          install.packages(c("terra", "sp", "raster"), dependencies = TRUE)
+          '
+
+      - name: Install basic R packages
+        run: |
+          Rscript -e '
+          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          install.packages(c("shiny", "shinydashboard", "sf", "leaflet"))
           '
 
       - name: Install remaining R dependencies
         run: |
           Rscript -e '
           options(repos = c(CRAN = "https://cloud.r-project.org"))
-          packages <- c(
+          install.packages(c(
             "wordcloud2",
             "dplyr",
-            "leaflet",
             "DT",
             "readxl",
             "writexl",
             "ggplot2",
             "tidyr",
-            "sf",
             "rsconnect"
-          )
-          for(pkg in packages) {
-            if (!require(pkg, character.only = TRUE)) {
-              install.packages(pkg, dependencies = TRUE)
-            }
-          }
+          ))
           '
-        
+
       - name: Verify installations
         run: |
           Rscript -e '
-          required <- c("shiny", "shinydashboard", "wordcloud2", "dplyr", "leaflet", 
-                       "DT", "readxl", "writexl", "ggplot2", "tidyr", "sf", "rsconnect")
-          installed <- installed.packages()[,"Package"]
-          missing <- required[!required %in% installed]
+          packages <- c("shiny", "shinydashboard", "leaflet", "sf", "dplyr")
+          missing <- packages[!packages %in% installed.packages()[,"Package"]]
           if(length(missing) > 0) {
             stop("Missing packages: ", paste(missing, collapse=", "))
           }

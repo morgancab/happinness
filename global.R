@@ -1,44 +1,55 @@
 # global.R
 
-# Configuration du dépôt CRAN
+# Configuration initiale
 options(repos = c(CRAN = "https://cloud.r-project.org"))
 
-# Packages requis
-required_packages <- c(
+# Fonction d'installation sécurisée
+safe_install <- function(pkg) {
+ {
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+        try({
+            install.packages(pkg, 
+                           dependencies = TRUE,
+                           quiet = TRUE,
+                           type = "binary")
+        }, silent = TRUE)
+    }
+}
+
+# Installation des packages dans l'ordre des dépendances
+packages_order <- c(
+    # Packages de base
     "shiny",
     "shinydashboard",
-    "wordcloud2",
+    
+    # Dépendances spatiales
+    "terra",
+    "sp",
+    "raster",
+    
+    # Autres packages
     "dplyr",
-    "leaflet",
     "DT",
     "readxl",
     "writexl",
     "ggplot2",
     "tidyr",
-    "sf"
+    "sf",
+    "leaflet",
+    "wordcloud2"
 )
 
 # Installation et chargement des packages
-for (pkg in required_packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-        install.packages(pkg, dependencies = TRUE, quiet = TRUE)
+for(pkg in packages_order) {
+    message(sprintf("Installation de %s...", pkg))
+    safe_install(pkg)
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+        warning(sprintf("Impossible de charger %s", pkg))
+        if(pkg %in% c("leaflet", "sf")) {
+            next
+        }
     }
-    library(pkg, character.only = TRUE, quietly = TRUE)
 }
-
-# Charger les packages avec gestion d'erreur
-tryCatch({
-    load_packages()
-}, error = function(e) {
-    message("Erreur lors du chargement des packages : ", e$message)
-    stop(e)
-})
-
-## Configuration de base
-options(
-    encoding = "UTF-8",
-    shiny.maxRequestSize = 30*1024^2
-)
 
 ## DATA ------------------------------------
 
@@ -50,13 +61,8 @@ happiness_survey <- tryCatch(
     }
 )
 
-if (is.null(happiness_survey)) {
-    stop("Impossible de charger les données. Vérifiez le fichier happiness_survey.xlsx")
-}
-
-# Reste de votre code avec une meilleure gestion des erreurs
-tryCatch({
-    # Initialisation des colonnes avec vectorisation
+if (!is.null(happiness_survey)) {
+    # Initialisation des colonnes
     happiness_survey[c("familles", "amis", "relations_amoureuses", "relations_sociales")] <- 0
 
     # Sélection et renommage des colonnes
@@ -69,14 +75,32 @@ tryCatch({
                                   "etre_heureux_selon_vous", "familles", "amis", 
                                   "relations_amoureuses", "relations_sociales")
 
-    # Le reste de votre code pour le traitement des données...
+    # Création des sous-ensembles
     happiness_survey_oq <- happiness_survey %>% select(c(14:19))
+
+    # Conversion du département en entier
     happiness_survey$departement <- as.integer(happiness_survey$departement)
 
     # Ajout des régions
     happiness_survey <- happiness_survey %>% 
         mutate(region = case_when(
-            # Votre code existant pour les régions...
+            departement  == 29 | departement == 22 | departement  == 56 | departement  == 35 ~ "Bretagne",
+            departement  == 44 | departement == 53 | departement  == 49 | departement  == 72 | departement == 85 ~ "Pays de la loire", 
+            departement  == 17 | departement == 79 | departement == 86 | departement == 16  | departement == 87  | departement == 23  | departement == 19  | departement == 24  | departement == 33  | departement == 47  | departement == 40  | departement == 64 ~ "Nouvelle Aquitaine",
+            departement  == 46 | departement  == 12 |  departement  == 48 |  departement  == 30 |  departement  == 34 |  departement  == 81 |  departement  == 82 |  departement  == 32 |  departement  == 31 |  departement  == 11 |  departement  == 09 |  departement  == 65 |  departement  == 66 ~ "Occitanie", 
+            departement  == 50 | departement  == 14 |  departement  == 61  |  departement  == 27  |  departement  == 76 ~ "Normandie", 
+            departement  == 37 | departement  == 41 | departement  == 28 | departement  == 45 | departement  == 36 | departement  == 18 ~ "Centre Val de Loire",
+            departement  == 78 | departement  == 95 | departement  == 91 | departement  == 77 | departement  == 75 | departement  == 94 | departement  == 92 | departement  == 93 ~ "Ile de France",
+            departement  == 62 | departement  == 59 | departement  == 80 | departement  == 02 | departement  == 60 ~ "Haut de France", 
+            departement  == 51 | departement  == 10 | departement  == 08 | departement  == 55 | departement  == 52 | departement  == 54 | departement  == 57 | departement  == 88 | departement  == 67 | departement  == 68 ~ "Grand Est",
+            departement  == 89 | departement  == 21 | departement  == 58 | departement  == 71 | departement  == 39 | departement  == 25 | departement  == 70 ~ "Bourgogne Franche Comte", 
+            departement  == 03 | departement  == 63 | departement  == 15 | departement  == 43 | departement  == 42 | departement  == 69 | departement  == 07 | departement == 26 | departement == 38 | departement == 01 | departement == 74 | departement == 73 ~ "Auvergne Rhones Alpes",
+            departement  == 13 | departement  == 84 | departement  == 04 | departement  == 83 | departement  == 05 | departement  == 06 ~ "Provence Alpes Cote d'Azur",
+            departement == 974 ~ "La Reunion", 
+            departement == 973 ~ "Guyane", 
+            departement == 972 ~ "Martinique", 
+            departement == 971 ~ "Guadeloupe",
+            departement == 976 ~ "Mayotte",
             TRUE ~ "NA"
         ))
 
@@ -91,11 +115,7 @@ tryCatch({
         ))
 
     happiness_survey_out_oq <- happiness_survey %>% select(-c(14:19))
-
-}, error = function(e) {
-    message("Erreur lors du traitement des données : ", e$message)
-    stop(e)
-})
+}
 
 # Questions
 questions <- c(
@@ -106,13 +126,6 @@ questions <- c(
 )
 
 # Définir l'encodage pour les caractères spéciaux
-tryCatch({
+try({
     Sys.setlocale("LC_ALL", "French_France.UTF-8")
-}, error = function(e) {
-    message("Attention : Problème d'encodage des caractères spéciaux")
-})
-
-# Vérification finale
-if (!exists("happiness_survey") || !exists("happiness_survey_out_oq")) {
-    stop("Initialisation incomplète des données")
-}
+}, silent = TRUE)
