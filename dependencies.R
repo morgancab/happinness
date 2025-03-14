@@ -1,7 +1,27 @@
-list.of.packages <- c("shiny", "shinydashboard","treemap","wordcloud2", "dplyr", "leaflet", 
-                      "DT", "readxl", "writexl","tm","SnowballC", "RColorBrewer", 
-                      "ggplot2","shinyBS", "plotly","shinyWidgets" ,"sf")
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages)
+# dependencies.R
 
-lapply(list.of.packages, library, character.only = TRUE)
+# Définir le miroir CRAN
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+# Liste des packages requis
+packages <- c(
+    "shiny",
+    "shinydashboard",
+    "wordcloud2",
+    "dplyr",
+    "leaflet",
+    "DT",
+    "readxl",
+    "writexl",
+    "ggplot2",
+    "tidyr",
+    "sf"
+)
+
+# Installer les packages manquants
+for(pkg in packages) {
+    if(!require(pkg, character.only = TRUE)) {
+        install.packages(pkg)
+        library(pkg, character.only = TRUE)
+    }
+}

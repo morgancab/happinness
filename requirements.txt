@@ -1,0 +1,11 @@
+shiny
+shinydashboard
+dplyr
+leaflet
+DT
+readxl
+writexl
+ggplot2
+tidyr
+sf
+wordcloud2

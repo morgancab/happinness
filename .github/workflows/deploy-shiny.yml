@@ -26,29 +26,76 @@ jobs:
             libcurl4-openssl-dev \
             libssl-dev \
             libxml2-dev \
-            libgit2-dev
-            
-      - name: Install R dependencies
+            libgit2-dev \
+            libharfbuzz-dev \
+            libfribidi-dev
+
+      - name: Set up R package directory
         run: |
-          install.packages(c('rsconnect', 'shiny', 'shinydashboard', 'wordcloud2', 
-                           'dplyr', 'leaflet', 'DT', 'readxl', 'writexl', 
-                           'ggplot2', 'tidyr', 'sf'))
-        shell: Rscript {0}
+          mkdir -p ~/.R/library
+          echo "R_LIBS_USER=~/.R/library" >> ~/.Renviron
+
+      - name: Pre-install critical packages
+        run: |
+          Rscript -e '
+          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          install.packages(c("shiny", "shinydashboard"), dependencies = TRUE)
+          '
+
+      - name: Install remaining R dependencies
+        run: |
+          Rscript -e '
+          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          packages <- c(
+            "wordcloud2",
+            "dplyr",
+            "leaflet",
+            "DT",
+            "readxl",
+            "writexl",
+            "ggplot2",
+            "tidyr",
+            "sf",
+            "rsconnect"
+          )
+          for(pkg in packages) {
+            if (!require(pkg, character.only = TRUE)) {
+              install.packages(pkg, dependencies = TRUE)
+            }
+          }
+          '
+        
+      - name: Verify installations
+        run: |
+          Rscript -e '
+          required <- c("shiny", "shinydashboard", "wordcloud2", "dplyr", "leaflet", 
+                       "DT", "readxl", "writexl", "ggplot2", "tidyr", "sf", "rsconnect")
+          installed <- installed.packages()[,"Package"]
+          missing <- required[!required %in% installed]
+          if(length(missing) > 0) {
+            stop("Missing packages: ", paste(missing, collapse=", "))
+          }
+          print("All required packages are installed")
+          '
         
       - name: Deploy to shinyapps.io
         env:
-          SHINYAPPS_ACCOUNT: ${{ secrets.SHINYAPPS_ACCOUNT }}
+          SHINYAPPS_NAME: ${{ secrets.SHINYAPPS_NAME }}
           SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
           SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
         run: |
+          Rscript -e '
           library(rsconnect)
           rsconnect::setAccountInfo(
-            name = Sys.getenv("SHINYAPPS_ACCOUNT"),
-            token = Sys.getenv("SHINYAPPS_TOKEN"),
-            secret = Sys.getenv("SHINYAPPS_SECRET")
+            name="${{ secrets.SHINYAPPS_NAME }}",
+            token="${{ secrets.SHINYAPPS_TOKEN }}",
+            secret="${{ secrets.SHINYAPPS_SECRET }}"
           )
           rsconnect::deployApp(
+            appDir = ".",
             appName = "happiness-analysis",
-            appTitle = "Happiness Analysis"
+            appTitle = "Happiness Analysis",
+            launch.browser = FALSE,
+            forceUpdate = TRUE
           )
-        shell: Rscript {0}
+          '
